@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.v1 import auth, brief, projects, milestones, invoices, digest
+from app.api.v1 import auth, brief, projects, milestones, invoices, digest, clients
 
 app = FastAPI(
     title="Gig.ai API",
@@ -31,6 +31,8 @@ app.include_router(projects.router, prefix="/api/v1")
 app.include_router(milestones.router, prefix="/api/v1")
 app.include_router(invoices.router, prefix="/api/v1")
 app.include_router(digest.router, prefix="/api/v1")
+app.include_router(clients.router, prefix="/api/v1")
+
 
 @app.get("/health", tags=["health"])
 def health_check():

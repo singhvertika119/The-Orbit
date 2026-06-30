@@ -2,9 +2,10 @@ import time
 from fastapi import APIRouter, Depends, HTTPException, status
 from app.core.database import supabase
 from app.core.security import get_current_user
-from app.models.brief import BriefParseRequest, BriefScopeRequest
+from app.models.brief import BriefParseRequest, BriefScopeRequest, BriefProposalRequest
 from app.agents.brief_parser import parse_brief, BriefParserOutput
 from app.agents.scope_advisor import advise_scope, ScopeAdvisorOutput
+from app.agents.proposal_drafter import draft_proposal, ProposalDrafterOutput
 
 router = APIRouter(prefix="/brief", tags=["brief"])
 
@@ -133,3 +134,46 @@ async def api_scope_brief(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Agent is taking longer than expected. We'll retry automatically. Error: {error_msg}"
         )
+
+@router.post("/proposal", response_model=ProposalDrafterOutput)
+async def api_proposal_brief(
+    request: BriefProposalRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Drafts a client-ready proposal with a subject line and body copy.
+    """
+    user_id = current_user["id"]
+    user_name = current_user.get("name") or "Freelancer"
+    user_upi = current_user.get("upi_id") or ""
+
+    try:
+        # Run agent task with exponential backoff
+        proposal_result = run_agent_with_backoff(
+            draft_proposal,
+            project_title=request.project_title,
+            client_name=request.client_name,
+            scope_breakdown=request.scope_breakdown,
+            timeline_days=request.timeline_days,
+            price_inr=request.price_inr,
+            deliverables=request.deliverables,
+            user_name=user_name,
+            user_upi=user_upi
+        )
+        return proposal_result
+    except Exception as e:
+        error_msg = str(e)
+        input_desc = f"Title: {request.project_title} | Client: {request.client_name}"
+        # Log failure to error_logs table
+        log_agent_error(
+            user_id=user_id,
+            agent_name="proposal-drafter",
+            endpoint="/api/v1/brief/proposal",
+            error_message=error_msg,
+            input_snapshot=input_desc
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Agent is taking longer than expected. We'll retry automatically. Error: {error_msg}"
+        )
+
