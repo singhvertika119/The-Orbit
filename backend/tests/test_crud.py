@@ -121,7 +121,8 @@ def test_list_milestones_success(mock_db):
     assert data[0]["title"] == "Database Design"
 
 @patch("app.api.v1.milestones.supabase")
-def test_complete_milestone_success(mock_db):
+@patch("app.tasks.invoices.invoice_on_milestone_complete")
+def test_complete_milestone_success(mock_task, mock_db):
     """
     Test milestone complete PATCH endpoint. Marks milestone as complete
     and sets completed_at timestamp.
@@ -142,6 +143,9 @@ def test_complete_milestone_success(mock_db):
     data = res.json()
     assert data["status"] == "complete"
     assert data["completed_at"] == "2026-06-30T19:00:00Z"
+    # Ensure delay was called
+    mock_task.delay.assert_called_once_with("mil-1", "8bbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb")
+
 
 
 # ==================== INVOICES CRUD TESTS ====================
