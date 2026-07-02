@@ -1,15 +1,18 @@
 import datetime
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from app.core.database import supabase
 from app.core.security import get_current_user
 from app.agents.digest_writer import write_digest
+from app.core.limiter import limiter
 
 from app.api.v1.brief import run_agent_with_backoff, log_agent_error
 
 router = APIRouter(prefix="/digest", tags=["digest"])
 
 @router.get("/today")
-async def get_today_digest(
+@limiter.limit("60/minute")
+def get_today_digest(
+    request: Request,
     refresh: bool = Query(False, description="Force regenerates a fresh digest run instead of loading cache"),
     current_user: dict = Depends(get_current_user)
 ):

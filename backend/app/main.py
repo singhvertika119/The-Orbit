@@ -1,13 +1,31 @@
+import sentry_sdk
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from app.core.config import settings
+from app.core.limiter import limiter
 from app.api.v1 import auth, brief, projects, milestones, invoices, digest, clients
+
+# Initialize Sentry if DSN is provided
+if settings.SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        environment=settings.ENVIRONMENT,
+        traces_sample_rate=1.0,
+        profiles_sample_rate=1.0,
+    )
 
 app = FastAPI(
     title="Gig.ai API",
     description="AI Freelance Command Centre Backend",
     version="1.0"
 )
+
+# Connect SlowAPI Limiter to app state
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 
 # Configure CORS origins
 origins = [

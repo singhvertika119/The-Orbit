@@ -1,5 +1,7 @@
 import time
-from fastapi import APIRouter, Depends, HTTPException, status
+import asyncio
+from fastapi import APIRouter, Depends, HTTPException, status, Request
+from app.core.limiter import limiter
 from app.core.database import supabase
 from app.core.security import get_current_user
 from app.models.brief import BriefParseRequest, BriefScopeRequest, BriefProposalRequest
@@ -28,22 +30,31 @@ def log_agent_error(user_id: str, agent_name: str, endpoint: str, error_message:
 def run_agent_with_backoff(agent_func, *args, max_retries: int = 3, initial_delay: float = 2.0, **kwargs):
     """
     Helper to execute an agent call with up to 3 automatic retries and exponential backoff.
+    Binds a fresh, non-running event loop to the current worker thread to avoid Uvicorn loop conflicts.
     """
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
     last_exception = None
-    for attempt in range(max_retries):
-        try:
-            return agent_func(*args, **kwargs)
-        except Exception as e:
-            last_exception = e
-            if attempt < max_retries - 1:
-                # Exponential backoff: 2s -> 4s -> 8s
-                sleep_time = initial_delay * (2 ** attempt)
-                time.sleep(sleep_time)
-    raise last_exception
+    try:
+        for attempt in range(max_retries):
+            try:
+                return agent_func(*args, **kwargs)
+            except Exception as e:
+                last_exception = e
+                if attempt < max_retries - 1:
+                    # Exponential backoff: 2s -> 4s -> 8s
+                    sleep_time = initial_delay * (2 ** attempt)
+                    time.sleep(sleep_time)
+        raise last_exception
+    finally:
+        loop.close()
 
 @router.post("/parse", response_model=BriefParserOutput)
-async def api_parse_brief(
-    request: BriefParseRequest,
+@limiter.limit("60/minute")
+def api_parse_brief(
+    request: Request,
+    brief_data: BriefParseRequest,
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -51,7 +62,7 @@ async def api_parse_brief(
     """
     try:
         # Run agent task with exponential backoff
-        parsed_result = run_agent_with_backoff(parse_brief, request.brief_text)
+        parsed_result = run_agent_with_backoff(parse_brief, brief_data.brief_text)
         return parsed_result
     except Exception as e:
         error_msg = str(e)
@@ -61,7 +72,7 @@ async def api_parse_brief(
             agent_name="brief-parser",
             endpoint="/api/v1/brief/parse",
             error_message=error_msg,
-            input_snapshot=request.brief_text
+            input_snapshot=brief_data.brief_text
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -69,8 +80,10 @@ async def api_parse_brief(
         )
 
 @router.post("/scope", response_model=ScopeAdvisorOutput)
-async def api_scope_brief(
-    request: BriefScopeRequest,
+@limiter.limit("60/minute")
+def api_scope_brief(
+    request: Request,
+    scope_data: BriefScopeRequest,
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -95,8 +108,8 @@ async def api_scope_brief(
                 title = proj.get("title", "N/A")
                 value = proj.get("value_inr", "N/A")
                 deadline = proj.get("deadline", "N/A")
-                scope_data = proj.get("scope") or {}
-                scope_tasks = ", ".join(scope_data.get("scope_breakdown", [])) if isinstance(scope_data, dict) else "N/A"
+                scope_data_dict = proj.get("scope") or {}
+                scope_tasks = ", ".join(scope_data_dict.get("scope_breakdown", [])) if isinstance(scope_data_dict, dict) else "N/A"
                 
                 formatted_projects.append(
                     f"- Project Name: {title}\n"
@@ -113,15 +126,15 @@ async def api_scope_brief(
         # Run agent task with exponential backoff
         scoped_result = run_agent_with_backoff(
             advise_scope,
-            brief_summary=request.brief_summary,
-            deliverables=request.deliverables,
-            project_type=request.project_type,
+            brief_summary=scope_data.brief_summary,
+            deliverables=scope_data.deliverables,
+            project_type=scope_data.project_type,
             past_projects_context=past_projects_context
         )
         return scoped_result
     except Exception as e:
         error_msg = str(e)
-        input_desc = f"Type: {request.project_type} | Summary: {request.brief_summary}"
+        input_desc = f"Type: {scope_data.project_type} | Summary: {scope_data.brief_summary}"
         # Log failure to error_logs table
         log_agent_error(
             user_id=user_id,
@@ -136,8 +149,10 @@ async def api_scope_brief(
         )
 
 @router.post("/proposal", response_model=ProposalDrafterOutput)
-async def api_proposal_brief(
-    request: BriefProposalRequest,
+@limiter.limit("60/minute")
+def api_proposal_brief(
+    request: Request,
+    proposal_data: BriefProposalRequest,
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -151,19 +166,19 @@ async def api_proposal_brief(
         # Run agent task with exponential backoff
         proposal_result = run_agent_with_backoff(
             draft_proposal,
-            project_title=request.project_title,
-            client_name=request.client_name,
-            scope_breakdown=request.scope_breakdown,
-            timeline_days=request.timeline_days,
-            price_inr=request.price_inr,
-            deliverables=request.deliverables,
+            project_title=proposal_data.project_title,
+            client_name=proposal_data.client_name,
+            scope_breakdown=proposal_data.scope_breakdown,
+            timeline_days=proposal_data.timeline_days,
+            price_inr=proposal_data.price_inr,
+            deliverables=proposal_data.deliverables,
             user_name=user_name,
             user_upi=user_upi
         )
         return proposal_result
     except Exception as e:
         error_msg = str(e)
-        input_desc = f"Title: {request.project_title} | Client: {request.client_name}"
+        input_desc = f"Title: {proposal_data.project_title} | Client: {proposal_data.client_name}"
         # Log failure to error_logs table
         log_agent_error(
             user_id=user_id,
