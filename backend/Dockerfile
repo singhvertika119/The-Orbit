@@ -15,6 +15,7 @@ WORKDIR /app
 
 # Copy dependency requirements
 COPY backend/requirements.txt .
+COPY backend/start_worker.sh .
 
 RUN chmod +x start_worker.sh
 
