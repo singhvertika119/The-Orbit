@@ -16,6 +16,8 @@ WORKDIR /app
 # Copy dependency requirements
 COPY backend/requirements.txt .
 
+RUN chmod +x start_worker.sh
+
 # Install python requirements
 RUN pip install --no-cache-dir -r requirements.txt
 
