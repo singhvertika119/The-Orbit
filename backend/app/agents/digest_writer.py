@@ -1,10 +1,11 @@
 from typing import List, Dict
 from pydantic import BaseModel, Field
+# pyrefly: ignore [missing-import]
 from crewai import Agent, Task, Crew
 from app.agents.llm import llm_versatile
 
 class DigestWriterOutput(BaseModel):
-    digest_text: str = Field(..., description="The formatted plain text / markdown morning digest briefing")
+    digest_text: str = Field(..., description="The formatted plain text morning digest briefing. No markdown, no ##, no *.")
 
 def write_digest(
     user_name: str,
@@ -21,13 +22,14 @@ def write_digest(
     """
     # 1. Define Digest Agent
     digest_agent = Agent(
-        role="Freelance Operations Coach",
-        goal="Produce motivational, highly actionable morning briefings from work metrics",
+        role="Freelance Operations Coach who writes in 100% plain text",
+        goal="Produce motivational, highly actionable morning briefings in 100% plain text, without any markdown formatting",
         backstory=(
             "You are a workspace assistant designed to help freelancers run their business. "
             "You parse milestones, invoices, and proposals, and generate brief, actionable daily digests. "
             "You highlight immediate actions (like due items or payment reminders) and write in a concise, "
-            "clear, and encouraging tone."
+            "clear, plain text tone. You NEVER use markdown formatting like hashes (##), asterisks (*), or bold markers (**). "
+            "You use simple newlines and CAPITALIZED SECTION HEADERS for formatting instead."
         ),
         llm=llm_versatile,
         verbose=False
@@ -64,20 +66,33 @@ def write_digest(
             f"1. Start with a direct, warm greeting (e.g., 'Good morning, Vertika. Here is your briefing...').\n"
             f"2. Summarize immediate work due today or overdue.\n"
             f"3. Call out high-priority overdue payments and recommend follow-ups.\n"
-            f"4. Structure the text in short sections with clear markdown headers and bullets.\n"
+            f"4. Return plain text only. No markdown formatting, no ##, no *, no **. Use newlines and capitalized headings for separation.\n"
             f"5. Keep it concise, motivational, and business-focused."
         ),
-        expected_output="A structured JSON object matching the DigestWriterOutput schema.",
-        agent=digest_agent,
-        output_pydantic=DigestWriterOutput
+        expected_output="A plain text morning briefing summarizing operations status and action items.",
+        agent=digest_agent
     )
 
     # 4. Execute Crew
     crew = Crew(
         agents=[digest_agent],
         tasks=[digest_task],
-        verbose=False
+        verbose=False,
+        cache=False
     )
 
     result = crew.kickoff()
-    return result.pydantic
+    raw_text = result.raw
+    
+    # Programmatically clean any accidental markdown artifacts before caching/returning
+    try:
+        import re
+        # Remove all hash symbols and any formatting stars/italics/backticks
+        clean_text = re.sub(r'#+\s*', '', raw_text)
+        clean_text = clean_text.replace('**', '').replace('* ', '• ').replace('*', '').replace('`', '').replace('_', '')
+        clean_text = clean_text.strip()
+    except Exception as e:
+        print(f"Failed to post-process digest markdown: {str(e)}")
+        clean_text = raw_text
+
+    return DigestWriterOutput(digest_text=clean_text)

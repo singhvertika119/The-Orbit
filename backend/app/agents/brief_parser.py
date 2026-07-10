@@ -49,7 +49,8 @@ def parse_brief(brief_text: str) -> BriefParserOutput:
     crew = Crew(
         agents=[parser_agent],
         tasks=[parser_task],
-        verbose=False
+        verbose=False,
+        cache=False
     )
 
     result = crew.kickoff()

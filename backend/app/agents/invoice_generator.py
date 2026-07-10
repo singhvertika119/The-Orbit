@@ -112,7 +112,8 @@ def generate_invoice(
     crew = Crew(
         agents=[generator_agent],
         tasks=[generator_task],
-        verbose=False
+        verbose=False,
+        cache=False
     )
 
     result = crew.kickoff()

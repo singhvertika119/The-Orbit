@@ -2,22 +2,8 @@
 
 import React, { useState, useEffect } from 'react'
 import { getDigestToday, listInvoices, listProjects } from '@/lib/api'
-import { formatCurrency } from '@/lib/utils'
-import { RefreshCw, Play, ArrowRight, Calendar, AlertTriangle } from 'lucide-react'
+import { RefreshCw, Calendar } from 'lucide-react'
 import toast from 'react-hot-toast'
-
-interface DigestData {
-  digest_text: string
-  cached: boolean
-  metrics?: {
-    active_projects_count: number
-    milestones_due_today_count: number
-    overdue_invoices_count: number
-    total_unpaid_amount: number
-    total_paid_amount: number
-    due_today_titles: string[]
-  }
-}
 
 export default function TodayDashboard() {
   const [digest, setDigest] = useState<string>('')
@@ -90,7 +76,7 @@ export default function TodayDashboard() {
         paidAmount: paidTotal
       })
     } catch (err) {
-      console.error('Error fetching dashboard stats:', err)
+      console.error('Error fetching stats:', err)
     } finally {
       setLoadingMetrics(false)
     }
@@ -101,30 +87,20 @@ export default function TodayDashboard() {
     fetchMetrics()
   }, [])
 
+  // Stat currency formatter: no decimals for zero state, use toLocaleString('en-IN') for real values
+  const formatStatCurrency = (value: number) => {
+    if (value === 0) return '₹0'
+    return '₹' + Math.round(value).toLocaleString('en-IN')
+  }
+
   return (
     <div className="space-y-6">
       
       {/* Header Panel */}
-      <div className="flex items-center justify-between border-bottom border-border-hairline pb-4">
-        <div>
-          <span className="font-mono text-[11px] text-text-secondary tracking-widest uppercase">
-            COMMAND CONTROL
-          </span>
-          <h1 className="font-inter font-medium text-[18px] tracking-[-0.02em] text-text-primary uppercase mt-1">
-            Today Dashboard
-          </h1>
-        </div>
-        <button
-          onClick={() => {
-            fetchDigest(true)
-            fetchMetrics()
-          }}
-          disabled={loadingDigest}
-          className="bg-surface hover:bg-surface-raised border border-border-strong text-text-primary px-3 py-1.5 font-inter text-[11px] font-semibold uppercase tracking-wider flex items-center space-x-1.5 transition-colors cursor-pointer"
-        >
-          <RefreshCw size={12} className={loadingDigest ? 'animate-spin' : ''} />
-          <span>{loadingDigest ? 'LOADING...' : 'REFRESH CONTEXT'}</span>
-        </button>
+      <div className="border-bottom border-border-hairline pb-4">
+        <h1 className="font-inter font-medium text-[18px] tracking-[-0.02em] text-text-primary uppercase">
+          Today Dashboard
+        </h1>
       </div>
 
       {/* Grid of Brutalist Metric Cards */}
@@ -135,8 +111,10 @@ export default function TodayDashboard() {
           <span className="font-inter text-[11px] tracking-[0.08em] uppercase text-text-secondary">
             Active Projects
           </span>
-          <div className="font-mono text-[24px] text-text-primary mt-2">
-            {loadingMetrics ? '---' : String(metrics.activeProjects).padStart(2, '0')}
+          <div className={`font-mono text-[24px] mt-1 ${
+            metrics.activeProjects > 0 ? 'text-text-primary' : 'text-[#444444]'
+          }`}>
+            {loadingMetrics ? '—' : metrics.activeProjects}
           </div>
         </div>
 
@@ -145,8 +123,10 @@ export default function TodayDashboard() {
           <span className="font-inter text-[11px] tracking-[0.08em] uppercase text-text-secondary">
             Unpaid Receivables
           </span>
-          <div className="font-mono text-[24px] text-danger mt-2">
-            {loadingMetrics ? '---' : formatCurrency(metrics.unpaidAmount)}
+          <div className={`font-mono text-[24px] mt-1 ${
+            metrics.unpaidAmount > 0 ? 'text-danger' : 'text-[#444444]'
+          }`}>
+            {loadingMetrics ? '—' : formatStatCurrency(metrics.unpaidAmount)}
           </div>
         </div>
 
@@ -155,8 +135,10 @@ export default function TodayDashboard() {
           <span className="font-inter text-[11px] tracking-[0.08em] uppercase text-text-secondary">
             Total Revenue Settled
           </span>
-          <div className="font-mono text-[24px] text-success mt-2">
-            {loadingMetrics ? '---' : formatCurrency(metrics.paidAmount)}
+          <div className={`font-mono text-[24px] mt-1 ${
+            metrics.paidAmount > 0 ? 'text-success' : 'text-[#444444]'
+          }`}>
+            {loadingMetrics ? '—' : formatStatCurrency(metrics.paidAmount)}
           </div>
         </div>
 
@@ -166,57 +148,72 @@ export default function TodayDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* Left column: Actions (5 cols) */}
-        <div className="lg:col-span-5 space-y-6">
-          <div className="bg-surface border border-border-hairline p-6">
-            <h2 className="font-inter font-medium text-[14px] tracking-[-0.02em] text-text-primary uppercase border-bottom border-border-hairline pb-2 mb-4">
-              Action Items Today
-            </h2>
-            
-            {loadingMetrics ? (
-              <div className="font-mono text-[11px] text-text-secondary uppercase">
-                LOADING ACTIONS...
-              </div>
-            ) : metrics.dueToday.length > 0 ? (
-              <ul className="space-y-3">
-                {metrics.dueToday.map((item: string, idx: number) => (
-                  <li key={idx} className="flex items-start space-x-3 p-3 bg-surface-raised border border-border-strong">
-                    <Calendar size={14} className="text-warning mt-0.5 shrink-0" />
-                    <div>
-                      <span className="font-mono text-[11px] text-warning uppercase block">
-                        DUE TODAY
-                      </span>
-                      <span className="font-inter text-[13px] text-text-primary mt-1 block">
-                        {item}
-                      </span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="text-center py-8">
-                <h3 className="font-inter text-[14px] text-text-primary uppercase">
-                  All Clear
-                </h3>
-                <p className="font-inter text-[12px] text-text-secondary mt-1">
-                  NO GIG MILESTONES ARE DUE TODAY.
-                </p>
-              </div>
-            )}
+        <div className="lg:col-span-5 flex flex-col">
+          <div className="bg-surface border border-border-hairline p-6 min-h-[200px] flex flex-col justify-between flex-1">
+            <div className="space-y-4 flex flex-col flex-1">
+              <h2 className="font-inter font-medium text-[14px] tracking-[-0.02em] text-text-primary uppercase border-bottom border-border-hairline pb-2 mb-4 shrink-0">
+                Action Items Today
+              </h2>
+              
+              {loadingMetrics ? (
+                <div className="font-mono text-[11px] text-text-secondary uppercase">
+                  LOADING ACTIONS...
+                </div>
+              ) : metrics.dueToday.length > 0 ? (
+                <ul className="space-y-3 overflow-y-auto">
+                  {metrics.dueToday.map((item: string, idx: number) => (
+                    <li key={idx} className="flex items-start space-x-3 p-3 bg-surface-raised border border-border-strong">
+                      <Calendar size={14} className="text-warning mt-0.5 shrink-0" />
+                      <div>
+                        <span className="font-mono text-[11px] text-warning uppercase block">
+                          DUE TODAY
+                        </span>
+                        <span className="font-inter text-[13px] text-text-primary mt-1 block">
+                          {item}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center py-6 text-center">
+                  <h3 className="font-inter text-[14px] text-text-primary uppercase">
+                    All Clear
+                  </h3>
+                  <p className="font-inter text-[12px] text-text-secondary mt-1">
+                    NO GIG MILESTONES ARE DUE TODAY.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Right column: Operations Digest (7 cols) */}
+        {/* Right column: Morning Digest (7 cols) */}
         <div className="lg:col-span-7">
           <div className="bg-surface border border-border-hairline p-6 space-y-4">
             <div className="flex items-center justify-between border-bottom border-border-hairline pb-2">
-              <h2 className="font-inter font-medium text-[14px] tracking-[-0.02em] text-text-primary uppercase">
-                Operations Coach Briefing
-              </h2>
-              {digest && !loadingDigest && (
-                <span className="font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 bg-surface-raised text-text-secondary">
-                  {cached ? 'CACHED' : 'LIVE RUN'}
-                </span>
-              )}
+              <div className="flex items-center space-x-2">
+                <h2 className="font-inter font-medium text-[14px] tracking-[-0.02em] text-text-primary uppercase">
+                  Morning Digest
+                </h2>
+                {digest && !loadingDigest && (
+                  <span className="font-mono text-[9px] uppercase tracking-wider text-[#333333] font-semibold">
+                    {cached ? '· CACHED' : '· LIVE RUN'}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  fetchDigest(true)
+                  fetchMetrics()
+                }}
+                disabled={loadingDigest}
+                className="text-text-secondary hover:text-text-primary font-inter text-[11px] font-semibold uppercase tracking-wider flex items-center space-x-1.5 transition-colors cursor-pointer"
+              >
+                <RefreshCw size={11} className={loadingDigest ? 'animate-spin' : ''} />
+                <span>{loadingDigest ? 'LOADING...' : 'REFRESH'}</span>
+              </button>
             </div>
 
             {loadingDigest ? (
@@ -233,7 +230,7 @@ export default function TodayDashboard() {
               </div>
             ) : (
               <div className="space-y-2">
-                <div className="text-[11px] uppercase font-inter font-medium text-text-secondary">
+                <div className="text-[11px] uppercase font-inter font-medium text-text-muted">
                   AGENT OUTPUT
                 </div>
                 <div className="bg-[#0A0A0A] border-l-2 border-white p-4 font-mono text-[12px] leading-relaxed text-text-primary whitespace-pre-wrap select-text">

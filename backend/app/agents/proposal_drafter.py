@@ -78,7 +78,8 @@ def draft_proposal(
     crew = Crew(
         agents=[drafter_agent],
         tasks=[drafter_task],
-        verbose=False
+        verbose=False,
+        cache=False
     )
 
     result = crew.kickoff()

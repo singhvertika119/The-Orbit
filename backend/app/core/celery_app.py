@@ -3,12 +3,25 @@ from celery import Celery
 # pyrefly: ignore [missing-import]
 from celery.schedules import crontab
 from app.core.config import settings
+import ssl
 
 # Initialize Celery app
+redis_url = settings.REDIS_URL
+ssl_conf = {}
+if redis_url.startswith("rediss://"):
+    ssl_conf = {
+        "broker_use_ssl": {
+            "ssl_cert_reqs": ssl.CERT_NONE
+        },
+        "redis_backend_use_ssl": {
+            "ssl_cert_reqs": ssl.CERT_NONE
+        }
+    }
+
 celery_app = Celery(
     "gigai",
-    broker=settings.REDIS_URL,
-    backend=settings.REDIS_URL,
+    broker=redis_url,
+    backend=redis_url,
     include=[
         "app.tasks.invoices",
         "app.tasks.followups",
@@ -32,5 +45,6 @@ celery_app.conf.update(
             "task": "app.tasks.digest.morning_digest",
             "schedule": crontab(hour=2, minute=30)  # 2:30 AM UTC = 8:00 AM IST
         }
-    }
+    },
+    **ssl_conf
 )

@@ -66,7 +66,8 @@ def advise_scope(
     crew = Crew(
         agents=[advisor_agent],
         tasks=[advisor_task],
-        verbose=False
+        verbose=False,
+        cache=False
     )
 
     result = crew.kickoff()

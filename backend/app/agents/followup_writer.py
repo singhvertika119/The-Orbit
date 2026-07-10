@@ -71,7 +71,8 @@ def write_followup(
     crew = Crew(
         agents=[writer_agent],
         tasks=[writer_task],
-        verbose=False
+        verbose=False,
+        cache=False
     )
 
     result = crew.kickoff()
