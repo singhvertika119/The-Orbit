@@ -95,6 +95,7 @@ def test_rate_limiting_registration():
     """
     Verifies that SlowAPI rate limiting state is correctly configured on the FastAPI app.
     """
+    # pyrefly: ignore [missing-import]
     from slowapi.errors import RateLimitExceeded
     assert hasattr(app.state, "limiter")
     # Verify rate limit exceeded handler is mapped

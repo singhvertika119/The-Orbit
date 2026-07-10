@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 env_path = Path(__file__).resolve().parent.parent / '.env'
 load_dotenv(dotenv_path=env_path)
 
+# pyrefly: ignore [missing-import]
 from supabase import create_client
 
 supabase_url = os.getenv("SUPABASE_URL")

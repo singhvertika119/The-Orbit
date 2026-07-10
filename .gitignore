@@ -42,6 +42,21 @@ yarn-debug.log*
 yarn-error.log*
 .eslintcache
 
+# Frontend Subdirectory Specifics
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+frontend/.vercel/
+frontend/*.tsbuildinfo
+frontend/CLAUDE.md
+frontend/AGENTS.md
+frontend/README.md
+
 # OS Files
 .DS_Store
 Thumbs.db
